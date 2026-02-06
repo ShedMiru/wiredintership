@@ -8,7 +8,7 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
 {
     [Header("Targets (existing objects)")]
     [SerializeField] private RectTransform garduTarget;     // Canvas/Gardu (posisi OPEN)
-    [SerializeField] private CanvasGroup canvasGroup;       // sudah ada di GuideBook
+    [SerializeField] private CanvasGroup canvasGroup;       // ada di GuideBook
 
     [Header("Book Root")]
     [SerializeField] private RectTransform bookRect;
@@ -19,7 +19,7 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
     [SerializeField] private GameObject openBook;           // GuideBook/OpenBook (panel halaman)
     [SerializeField] private Image leftPage;                // OpenBook/Left
     [SerializeField] private Image rightPage;               // OpenBook/Right
-    [SerializeField] private Image closedImage;             // (optional) Image cover kalau mau ganti sprite
+    [SerializeField] private Image closedImage;             // optional (Image cover)
 
     [Header("Buttons (2 tombol berbeda)")]
     [SerializeField] private Button btnOpen;                // tombol di COVER (ClosedBook)
@@ -28,15 +28,20 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
     [SerializeField] private Button btnNext;                // optional
 
     [Header("Pages")]
-    [Tooltip("Open spread: kiri=0 kanan=1, lalu next kiri=2 kanan=3, dst.")]
+    [Tooltip("Spread mode: kiri=0 kanan=1, lalu next kiri=2 kanan=3, dst.")]
     [SerializeField] private List<Sprite> pages = new List<Sprite>();
 
     [Header("Motion")]
     [SerializeField] private float moveDuration = 0.18f;
 
-    [Header("Flip Effect")]
-    [SerializeField] private RectTransform flipTarget;      // default = rightPage rect
-    [SerializeField] private float flipHalfDuration = 0.12f;
+    [Header("Open Animation (Special)")]
+    [SerializeField] private float openDuration = 0.6f;     // Durasi khusus membuka buku
+    [SerializeField] private AnimationCurve openCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+
+    [Header("Flip Motion (lebih masuk akal: geser halaman)")]
+    [SerializeField] private float flipDuration = 0.22f;     // durasi geser
+    [SerializeField] private float flipScaleMin = 0.92f;     // sedikit “press” biar terasa kertas
+    [SerializeField] private float flipAlphaMin = 0.75f;     // sedikit transparan saat bergerak
 
     private Vector2 closedAnchoredPos; // posisi awal GuideBook di scene (CLOSED)
     private bool isOpen;
@@ -46,6 +51,14 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
     // drag
     private Vector2 dragStartBookPos;
     private Vector2 dragStartPointerLocal;
+
+    // home positions halaman (di-cache setelah layout settle)
+    private Vector2 leftHomePos;
+    private Vector2 rightHomePos;
+
+    // kalau OpenBook pakai LayoutGroup / ContentSizeFitter
+    private LayoutGroup openLayoutGroup;
+    private ContentSizeFitter openFitter;
 
     private void Reset()
     {
@@ -58,7 +71,6 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (bookRect == null) bookRect = GetComponent<RectTransform>();
         if (canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
 
-        // auto-find sesuai hierarchy kamu
         if (closedBook == null)
         {
             var t = transform.Find("ClosedBook");
@@ -85,9 +97,6 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
                 if (t) rightPage = t.GetComponent<Image>();
             }
         }
-
-        if (flipTarget == null && rightPage != null)
-            flipTarget = rightPage.rectTransform;
     }
 
     private void Awake()
@@ -111,16 +120,34 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
             }
         }
 
-        // CLOSED pos = posisi awal yang kamu set di scene (tanpa angka manual)
-        closedAnchoredPos = bookRect.anchoredPosition;
+        if (openBook != null)
+        {
+            openLayoutGroup = openBook.GetComponent<LayoutGroup>();
+            openFitter = openBook.GetComponent<ContentSizeFitter>();
+        }
 
-        // Wiring tombol
         if (btnOpen) btnOpen.onClick.AddListener(Open);
         if (btnClose) btnClose.onClick.AddListener(Close);
         if (btnPrev) btnPrev.onClick.AddListener(Prev);
         if (btnNext) btnNext.onClick.AddListener(Next);
 
-        ApplyStateInstant(isOpen);
+        // init view dulu
+        ApplyView(false);
+        UpdateButtonsVisibility();
+
+        // cache posisi setelah UI layout settle
+        StartCoroutine(CacheHomePositionsAfterLayout());
+    }
+
+    private IEnumerator CacheHomePositionsAfterLayout()
+    {
+        // tunggu 1 frame biar layout group nerapin posisi Left/Right dulu
+        yield return null;
+
+        closedAnchoredPos = bookRect.anchoredPosition;
+
+        if (leftPage) leftHomePos = leftPage.rectTransform.anchoredPosition;
+        if (rightPage) rightHomePos = rightPage.rectTransform.anchoredPosition;
     }
 
     // -------------------- OPEN / CLOSE (2 tombol berbeda)
@@ -129,11 +156,65 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (isOpen || isFlipping) return;
 
         isOpen = true;
-        ApplyView(true);
+        // MODIFIKASI: Jangan panggil ApplyView(true) langsung.
+        // Biarkan coroutine animasi yang menangani perubahan visual agar mulus.
+
         UpdateButtonsVisibility();
 
         StopAllCoroutines();
-        StartCoroutine(MoveToAnchored(GetOpenAnchoredPos()));
+        // GANTI: Panggil animasi spesial pembuka buku
+        StartCoroutine(AnimateOpeningSequence());
+    }
+
+    // MODIFIKASI: Animasi Unik Membuka Buku (Flip + Scale)
+    private IEnumerator AnimateOpeningSequence()
+    {
+        isFlipping = true; // Kunci interaksi
+
+        // Pastikan mulai dari posisi Closed (Cover)
+        if (closedBook) closedBook.SetActive(true);
+        if (openBook) openBook.SetActive(false);
+
+        // Setup cover image (opsional)
+        if (closedImage && pages.Count > 0) closedImage.sprite = pages[0];
+
+        Vector2 start = closedAnchoredPos;
+        Vector2 target = GetOpenAnchoredPos();
+
+        float t = 0f;
+        bool viewSwapped = false;
+
+        while (t < 1f)
+        {
+            t += Time.unscaledDeltaTime / Mathf.Max(0.0001f, openDuration);
+            float progress = Mathf.Clamp01(t);
+            float curveValue = openCurve.Evaluate(progress);
+
+            // 1. Gerakan Posisi (Menuju Gardu)
+            bookRect.anchoredPosition = Vector2.LerpUnclamped(start, target, curveValue);
+
+            // 2. Efek Flip (Scale X) - Unik dan Menggeleggar
+            // Cos(0) = 1 (Lebar) -> Cos(PI/2) = 0 (Tipis) -> Cos(PI) = -1 (Lebar lagi)
+            float scaleX = Mathf.Abs(Mathf.Cos(progress * Mathf.PI));
+            bookRect.localScale = new Vector3(scaleX, 1f, 1f);
+
+            // 3. Swap View di tengah (saat buku "tipis")
+            if (progress >= 0.5f && !viewSwapped)
+            {
+                ApplyView(true); // Ganti ke Halaman Terbuka
+                viewSwapped = true;
+            }
+
+            yield return null;
+        }
+
+        // Finalisasi
+        bookRect.anchoredPosition = target;
+        bookRect.localScale = Vector3.one;
+        if (!viewSwapped) ApplyView(true);
+
+        isFlipping = false; // Buka kunci
+        UpdateButtonsVisibility();
     }
 
     public void Close()
@@ -141,20 +222,15 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (!isOpen || isFlipping) return;
 
         isOpen = false;
+        // KODINGAN AWAL (Safety): Langsung ganti ke Cover (ClosedBook) sebelum bergerak.
+        // Ini memastikan sprite buku "berjalan" pulang, bukan menghilang.
         ApplyView(false);
+
         UpdateButtonsVisibility();
 
         StopAllCoroutines();
+        // Kembali menggunakan MoveToAnchored (Animasi simple & aman)
         StartCoroutine(MoveToAnchored(closedAnchoredPos));
-    }
-
-    private void ApplyStateInstant(bool open)
-    {
-        isOpen = open;
-        ApplyView(open);
-        UpdateButtonsVisibility();
-
-        bookRect.anchoredPosition = open ? GetOpenAnchoredPos() : closedAnchoredPos;
     }
 
     private void ApplyView(bool open)
@@ -162,28 +238,22 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (closedBook) closedBook.SetActive(!open);
         if (openBook) openBook.SetActive(open);
 
-        // cover sprite optional
         if (!open && closedImage != null && pages != null && pages.Count > 0)
             closedImage.sprite = pages[0];
 
-        // saat buka, pastikan spread pertama tampil
         if (open)
         {
-            spreadIndex = Mathf.Max(0, spreadIndex);
+            // pastikan sprite spread tampil benar
+            spreadIndex = Mathf.Clamp(spreadIndex, 0, Mathf.Max(0, pages.Count - 1));
             RefreshSpreadSprites();
         }
     }
 
     private void UpdateButtonsVisibility()
     {
-        // btnOpen biasanya menempel di ClosedBook (jadi otomatis hilang saat ClosedBook inactive)
-        // tapi kalau btnOpen terpisah, ini tetap aman:
         if (btnOpen) btnOpen.gameObject.SetActive(!isOpen);
-
-        // close hanya muncul saat open
         if (btnClose) btnClose.gameObject.SetActive(isOpen);
 
-        // nav button hanya saat open
         bool navVisible = isOpen && !isFlipping;
         if (btnPrev) btnPrev.gameObject.SetActive(navVisible);
         if (btnNext) btnNext.gameObject.SetActive(navVisible);
@@ -215,6 +285,9 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
 
     private IEnumerator MoveToAnchored(Vector2 target)
     {
+        // Pastikan scale normal saat move biasa (Close)
+        bookRect.localScale = Vector3.one;
+
         Vector2 start = bookRect.anchoredPosition;
         float t = 0f;
 
@@ -275,13 +348,14 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         return anchoredPos;
     }
 
-    // -------------------- PAGES + FLIP
+    // -------------------- PAGES + FLIP (GESER KERTAS, BUKAN MUTER)
     public void Next()
     {
         if (!isOpen || isFlipping) return;
         int nextIndex = spreadIndex + 2;
         if (nextIndex >= pages.Count) return;
-        StartCoroutine(FlipTo(nextIndex));
+
+        StartCoroutine(FlipSlide(nextIndex, forward: true));
     }
 
     public void Prev()
@@ -289,30 +363,84 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (!isOpen || isFlipping) return;
         int prevIndex = spreadIndex - 2;
         if (prevIndex < 0) return;
-        StartCoroutine(FlipTo(prevIndex));
+
+        StartCoroutine(FlipSlide(prevIndex, forward: false));
     }
 
-    private IEnumerator FlipTo(int newSpreadIndex)
+    private IEnumerator FlipSlide(int newSpreadIndex, bool forward)
     {
         isFlipping = true;
         UpdateButtonsVisibility();
 
-        if (flipTarget != null)
-            yield return ScaleX(flipTarget, 1f, 0f, flipHalfDuration);
+        // Disable layout agar posisi halaman bisa dianimasi (tanpa bikin object baru)
+        bool hadLayout = false;
+        if (openLayoutGroup != null && openLayoutGroup.enabled) { openLayoutGroup.enabled = false; hadLayout = true; }
+        bool hadFitter = false;
+        if (openFitter != null && openFitter.enabled) { openFitter.enabled = false; hadFitter = true; }
 
+        // pastikan home pos sudah ada
+        if (leftPage) leftHomePos = leftPage.rectTransform.anchoredPosition;
+        if (rightPage) rightHomePos = rightPage.rectTransform.anchoredPosition;
+
+        // yang bergerak:
+        Image movingImg = forward ? rightPage : leftPage;
+        RectTransform movingRt = movingImg.rectTransform;
+
+        Vector2 from = forward ? rightHomePos : leftHomePos;
+        Vector2 to = forward ? leftHomePos : rightHomePos;
+
+        // biar layer-nya di atas saat bergerak
+        movingRt.SetAsLastSibling();
+
+        yield return SlidePage(movingImg, from, to, flipDuration);
+
+        // setelah "kertas" sampai sisi seberang -> baru ganti sprite
         spreadIndex = newSpreadIndex;
         RefreshSpreadSprites();
 
-        if (flipTarget != null)
-            yield return ScaleX(flipTarget, 0f, 1f, flipHalfDuration);
+        // reset posisi & visual halaman yang digeser
+        movingRt.anchoredPosition = from;
+        movingRt.localScale = Vector3.one;
+        SetAlpha(movingImg, 1f);
+
+        // enable layout lagi (kalau ada) supaya balik rapi
+        if (hadLayout) openLayoutGroup.enabled = true;
+        if (hadFitter) openFitter.enabled = true;
 
         isFlipping = false;
         UpdateButtonsVisibility();
     }
 
+    private IEnumerator SlidePage(Image img, Vector2 from, Vector2 to, float duration)
+    {
+        RectTransform rt = img.rectTransform;
+
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.unscaledDeltaTime / Mathf.Max(0.0001f, duration);
+            float s = Smooth01(t);
+
+            // gerak dari kanan->kiri atau kiri->kanan
+            rt.anchoredPosition = Vector2.LerpUnclamped(from, to, s);
+
+            // kasih sedikit feel "kertas" (press kecil + alpha)
+            float press = Mathf.Lerp(1f, flipScaleMin, Mathf.Sin(s * Mathf.PI)); // kecil di tengah
+            rt.localScale = new Vector3(press, 1f, 1f);
+
+            float a = Mathf.Lerp(1f, flipAlphaMin, Mathf.Sin(s * Mathf.PI));
+            SetAlpha(img, a);
+
+            yield return null;
+        }
+
+        rt.anchoredPosition = to;
+    }
+
     private void RefreshSpreadSprites()
     {
         if (leftPage == null || rightPage == null) return;
+
         if (pages == null || pages.Count == 0)
         {
             leftPage.sprite = null;
@@ -336,19 +464,11 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         return x * x * (3f - 2f * x);
     }
 
-    private IEnumerator ScaleX(RectTransform rt, float from, float to, float duration)
+    private static void SetAlpha(Image img, float a)
     {
-        Vector3 s = rt.localScale;
-        float t = 0f;
-
-        while (t < 1f)
-        {
-            t += Time.unscaledDeltaTime / Mathf.Max(0.0001f, duration);
-            float v = Mathf.Lerp(from, to, Smooth01(t));
-            rt.localScale = new Vector3(v, s.y, s.z);
-            yield return null;
-        }
-
-        rt.localScale = new Vector3(to, s.y, s.z);
+        if (img == null) return;
+        Color c = img.color;
+        c.a = a;
+        img.color = c;
     }
 }
