@@ -19,6 +19,9 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
     [SerializeField] private GameObject openBook;           // GuideBook/OpenBook (panel halaman)
     [SerializeField] private Image leftPage;                // OpenBook/Left
     [SerializeField] private Image rightPage;               // OpenBook/Right
+
+    // PERBAIKAN: Field ini tetap ada agar referensi Inspector tidak putus, 
+    // tapi skrip tidak akan lagi mengubah sprite-nya secara otomatis.
     [SerializeField] private Image closedImage;             // optional (Image cover)
 
     [Header("Buttons (2 tombol berbeda)")]
@@ -156,17 +159,15 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (isOpen || isFlipping) return;
 
         isOpen = true;
-        // MODIFIKASI: Jangan panggil ApplyView(true) langsung.
-        // Biarkan coroutine animasi yang menangani perubahan visual agar mulus.
 
         UpdateButtonsVisibility();
 
         StopAllCoroutines();
-        // GANTI: Panggil animasi spesial pembuka buku
+        // Panggil animasi spesial pembuka buku
         StartCoroutine(AnimateOpeningSequence());
     }
 
-    // MODIFIKASI: Animasi Unik Membuka Buku (Flip + Scale)
+    // Animasi Unik Membuka Buku (Flip + Scale)
     private IEnumerator AnimateOpeningSequence()
     {
         isFlipping = true; // Kunci interaksi
@@ -175,8 +176,8 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (closedBook) closedBook.SetActive(true);
         if (openBook) openBook.SetActive(false);
 
-        // Setup cover image (opsional)
-        if (closedImage && pages.Count > 0) closedImage.sprite = pages[0];
+        // --- PERBAIKAN: Kode yang menimpa closedImage dihapus ---
+        // Cover book akan menggunakan sprite yang sudah Anda set di Inspector.
 
         Vector2 start = closedAnchoredPos;
         Vector2 target = GetOpenAnchoredPos();
@@ -223,7 +224,6 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
 
         isOpen = false;
         // KODINGAN AWAL (Safety): Langsung ganti ke Cover (ClosedBook) sebelum bergerak.
-        // Ini memastikan sprite buku "berjalan" pulang, bukan menghilang.
         ApplyView(false);
 
         UpdateButtonsVisibility();
@@ -238,8 +238,9 @@ public class GuideBookUI : MonoBehaviour, IBeginDragHandler, IDragHandler
         if (closedBook) closedBook.SetActive(!open);
         if (openBook) openBook.SetActive(open);
 
-        if (!open && closedImage != null && pages != null && pages.Count > 0)
-            closedImage.sprite = pages[0];
+        // --- PERBAIKAN: Kode ini dihapus agar tidak menimpa Cover ---
+        // if (!open && closedImage != null && pages != null && pages.Count > 0)
+        //    closedImage.sprite = pages[0];
 
         if (open)
         {
