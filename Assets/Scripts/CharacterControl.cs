@@ -7,6 +7,7 @@ public class CharacterControl : MonoBehaviour
     private Rigidbody2D rb2d;
     private float h;
     private float v;
+    private Vector2 move;
 
     public float speed = 10f;
     [SerializeField] private KeyCode interactKey = KeyCode.F;
@@ -26,11 +27,9 @@ public class CharacterControl : MonoBehaviour
         h = Input.GetAxisRaw("Horizontal");
         v = Input.GetAxisRaw("Vertical");
 
-        Vector2 move = new Vector2(h, v);
+        move = new Vector2(h, v);
         if (move.magnitude > 1)
             move.Normalize();
-
-        rb2d.velocity = move * speed;
 
         // interact
         if (currentInteractable != null && Input.GetKeyDown(interactKey))
@@ -38,6 +37,21 @@ public class CharacterControl : MonoBehaviour
             rb2d.velocity = Vector2.zero;
             currentInteractable.Interact(gameObject);
         }
+    }
+
+    void FixedUpdate()
+    {
+        if (v>0 || v<0)
+        {
+            speed = 7f;
+        }
+        else
+        {
+            speed = 10f;
+        }
+        rb2d.velocity = move * speed;
+        Debug.Log(rb2d.velocity);
+
     }
 
     private void OnTriggerEnter2D(Collider2D other)

@@ -2,19 +2,33 @@ using UnityEngine;
 
 public class CameraFollowP : MonoBehaviour
 {
-    [SerializeField] private Transform target;   // player
-    [SerializeField] private float smoothTime = 0.15f;
-    [SerializeField] private float xOffset = 0f;
+    [SerializeField] private Rigidbody2D targetRb; // drag PLAYER Rigidbody2D here
+    [SerializeField] private float minY;
+    [SerializeField] private float maxY;
 
-    private float xVelocity;
+    private Camera cam;
+
+    void Awake()
+    {
+        cam = GetComponent<Camera>();
+    }
 
     void LateUpdate()
     {
-        if (target == null) return;
+        if (targetRb == null || cam == null) return;
 
-        float targetX = target.position.x + xOffset;
-        float newX = Mathf.SmoothDamp(transform.position.x, targetX, ref xVelocity, smoothTime);
+        float halfH = cam.orthographicSize;
 
-        transform.position = new Vector3(newX, transform.position.y, transform.position.z);
+        // Move camera by the same Y displacement the player had this frame
+        float newY = transform.position.y + targetRb.velocity.y * Time.deltaTime;
+
+        // Keep camera EDGES inside bounds (no Mathf.Clamp)
+        float bottom = newY - halfH - 0.005f;
+        float top = newY + halfH + 0.005f;
+
+        if (bottom < minY) newY = minY + halfH;
+        if (top > maxY) newY = maxY - halfH;
+
+        transform.position = new Vector3(transform.position.x, newY, transform.position.z);
     }
 }
