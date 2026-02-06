@@ -8,7 +8,7 @@ public class CharacterControl : MonoBehaviour
     private float h;
     private float v;
 
-    public float speed = 5f;
+    public float speed = 10f;
     [SerializeField] private KeyCode interactKey = KeyCode.F;
 
     private IInteractable currentInteractable;
