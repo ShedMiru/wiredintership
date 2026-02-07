@@ -19,6 +19,7 @@ public class GameCycleManager : MonoBehaviour
     public Text timerText;
     public GameObject killSwitchButton;
     public GameObject warningAlertUI; // Pastikan ini punya komponen Text (Legacy)
+    public GameObject warningAlertUI2;
     public Image fadeOutPanel;
 
     [Header("Audio System")]
@@ -226,6 +227,13 @@ public class GameCycleManager : MonoBehaviour
         }
     }
 
+    private void WarningChange()
+    {
+        warningAlertUI2.SetActive(false);
+        warningAlertUI.SetActive(true);
+        TriggerRedBlink(warningAlertUI);
+    }
+
     private void TriggerRedBlink(GameObject targetObj)
     {
         var feedback = targetObj.GetComponent<AutoErrorFeedback>();
@@ -242,6 +250,7 @@ public class GameCycleManager : MonoBehaviour
     // --- LOGIKA MENANG (Dramatic) ---
     private IEnumerator WinSequence()
     {
+        WarningChange();
         isGameEnded = true;
         Debug.Log("WIN SEQUENCE INITIATED...");
 
@@ -319,6 +328,7 @@ public class GameCycleManager : MonoBehaviour
 
     private IEnumerator GameOverSequence()
     {
+        WarningChange();
         fadeOutPanel.gameObject.SetActive(true);
         isGameEnded = true;
         Debug.Log("GAME OVER");

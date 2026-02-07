@@ -30,8 +30,12 @@ public class TextHover : MonoBehaviour
             {
                 warningText.SetActive(false);
                 warningText2.SetActive(true);
+                var feedback = warningText2.GetComponent<AutoErrorFeedback>();
+                if (feedback == null) feedback = warningText2.AddComponent<AutoErrorFeedback>();
+                feedback.SetError(true);
+                counter = -1;
             }
-            else
+            else if (counter != -1)
             {
                 counter++;
             }
