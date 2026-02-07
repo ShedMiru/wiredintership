@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Events;
 
 public class GlobalPuzzleManager : MonoBehaviour
 {
@@ -22,9 +23,14 @@ public class GlobalPuzzleManager : MonoBehaviour
     [Header("Pengaturan Visual")]
     [SerializeField] private Color powerOnColor = Color.green;
     [SerializeField] private Color powerOffColor = Color.red;
-    [SerializeField] private float blinkSpeed = 4.0f;
+    [SerializeField] public float blinkSpeed = 4.0f;
     [Range(0f, 1f)]
     [SerializeField] private float minBrightness = 0.3f;
+
+    [Header("Pengaturan Visual")]
+    public UnityEvent panelEnabler;
+    private bool panelEnabled = false;
+
 
     private bool lastA, lastB, lastC, lastD;
     private Coroutine routineA, routineB, routineC, routineD;
@@ -66,6 +72,12 @@ public class GlobalPuzzleManager : MonoBehaviour
             lastD = districtD_Active;
 
             UpdateMapVisuals();
+        }
+
+        if (districtA_Active && !panelEnabled)
+        {
+            panelEnabler.Invoke();
+            panelEnabled = true;
         }
     }
 
@@ -142,5 +154,10 @@ public class GlobalPuzzleManager : MonoBehaviour
     public void TriggerExplosion(string plcName)
     {
         Debug.LogWarning($"[SYSTEM ALERT] PLC {plcName} mengalami kegagalan kritis/ledakan!");
+    }
+
+    public void SetBlinkSpeed(float speed)
+    {
+        blinkSpeed = speed;
     }
 }

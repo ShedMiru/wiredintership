@@ -27,6 +27,7 @@ public class GameCycleManager : MonoBehaviour
     public AudioClip normalBGM;
     public AudioClip panicBGM;
     public AudioClip warningAlarmSFX;
+    public AudioClip powerOutageSFX;
 
     [Header("Cycle Logic")]
     public List<PLCController> chaosTargets;
@@ -35,12 +36,15 @@ public class GameCycleManager : MonoBehaviour
     [Header("Story Events")]
     public UnityEvent onCycle1Reached;
     public UnityEvent onMistakeMade;
+    public UnityEvent openingEvent;
 
     // Internal State
     private float currentTime;
     private bool isPanicMode = false;
     private bool hasReachedCycle1 = false;
     private bool isGameEnded = false;
+    private bool introCheck = true;
+
 
     private int lastGreenCount = 0;
 
@@ -66,6 +70,8 @@ public class GameCycleManager : MonoBehaviour
         {
             fadeOutPanel.canvasRenderer.SetAlpha(0f);
         }
+
+        openingEvent.Invoke();
     }
 
     private void Update()
@@ -76,8 +82,14 @@ public class GameCycleManager : MonoBehaviour
         CheckDistrictStatus();
     }
 
+    public void IntroSequenceEnd()
+    {
+        introCheck = false;
+    }
+
     private void HandleTimer()
     {
+        if (introCheck) return;
         if (currentTime > 0)
         {
             currentTime -= Time.deltaTime;
@@ -180,24 +192,37 @@ public class GameCycleManager : MonoBehaviour
     private void ActivatePanicMode()
     {
         isPanicMode = true;
+        bgmSource.Stop();
 
-        if (bgmSource != null && panicBGM != null)
+        if (sfxSource != null && warningAlarmSFX != null && powerOutageSFX != null)
         {
-            bgmSource.Stop();
-            bgmSource.clip = panicBGM;
-            bgmSource.loop = true;
-            bgmSource.Play();
-        }
-
-        if (sfxSource != null && warningAlarmSFX != null)
-        {
-            sfxSource.PlayOneShot(warningAlarmSFX);
+            sfxSource.PlayOneShot(powerOutageSFX);
+            StartCoroutine(WarningAlarmDelay(8f));
         }
 
         if (warningAlertUI)
         {
             warningAlertUI.SetActive(true);
             TriggerRedBlink(warningAlertUI);
+        }
+    }
+
+    private IEnumerator WarningAlarmDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        sfxSource.PlayOneShot(warningAlarmSFX);
+
+        StartCoroutine(PanicBGMDelay(1f));
+    }
+
+    private IEnumerator PanicBGMDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (bgmSource != null && panicBGM != null)
+        {
+            bgmSource.clip = panicBGM;
+            bgmSource.loop = true;
+            bgmSource.Play();
         }
     }
 
