@@ -4,6 +4,8 @@ using UnityEngine.UI;
 public class PLCLiquidTank : MonoBehaviour
 {
     [Header("UI References")]
+    [Tooltip("Drag gambar wadah/tangki kosong di sini (untuk target Outline Merah)")]
+    public Image tankBackgroundImage; // TEMPAT BARU: Background Tangki
     public Image fillImage; // Gambar air (Type: Filled Vertical)
     public Button btnPlus;
     public Button btnMinus;
@@ -23,11 +25,20 @@ public class PLCLiquidTank : MonoBehaviour
         btnPlus.onClick.AddListener(OnPlusClicked);
         btnMinus.onClick.AddListener(OnMinusClicked);
 
-        // PENTING: Outline harus menempel pada objek yang punya komponen 'Image'
-        // Kita prioritaskan Fill Image (Airnya) agar outline mengikuti bentuk air
-        GameObject targetObj = fillImage != null ? fillImage.gameObject : gameObject;
+        // PERBAIKAN: Target outline diutamakan ke tankBackgroundImage (Wadah)
+        // Jika kosong, fallback ke fillImage, lalu ke gameObject sendiri
+        GameObject targetObj = gameObject;
 
-        // Pastikan tidak dobel
+        if (tankBackgroundImage != null)
+        {
+            targetObj = tankBackgroundImage.gameObject;
+        }
+        else if (fillImage != null)
+        {
+            targetObj = fillImage.gameObject;
+        }
+
+        // Pastikan tidak dobel komponen feedback
         feedback = targetObj.GetComponent<AutoErrorFeedback>();
         if (feedback == null) feedback = targetObj.AddComponent<AutoErrorFeedback>();
 
