@@ -40,8 +40,17 @@ public class PLCController : MonoBehaviour
     {
         public PLCWirePoint pointA;
         public PLCWirePoint pointB;
+
         [Tooltip("Index elemen di list 'Wire Prefabs' yang akan dipakai untuk kabel ini")]
         public int wireColorIndex = 0;
+
+        [Header("Logic Settings")]
+        [Tooltip("Centang jika kabel HARUS tersambung agar menang. Uncheck jika kabel HARUS PUTUS/TIDAK ADA.")]
+        public bool shouldBeConnected = true;
+
+        [Header("Initial State")]
+        [Tooltip("Centang jika kabel sudah terpasang otomatis saat game mulai (misal untuk jebakan kabel salah).")]
+        public bool startConnected = false;
     }
 
     // --- MAIN SETTINGS ---
@@ -74,16 +83,39 @@ public class PLCController : MonoBehaviour
     private GameObject tempWireLine;
     private bool isSystemReady = false;
     private float lastExplosionTime = 0f;
+    private Canvas rootCanvas; // Cache canvas untuk performa
 
     private void Start()
     {
         if (wirePrefabs == null) wirePrefabs = new List<GameObject>();
+        rootCanvas = GetComponentInParent<Canvas>(); // Cache di awal
         StartCoroutine(InitializeSystem());
+    }
+
+    // Menggunakan LateUpdate untuk memastikan visual kabel selalu nempel di titiknya
+    private void LateUpdate()
+    {
+        if (!isSystemReady) return;
+
+        HashSet<GameObject> updatedWires = new HashSet<GameObject>();
+
+        foreach (var pt in allWirePoints)
+        {
+            if (pt != null && pt.connectedTo != null && pt.wireLineObject != null)
+            {
+                if (!updatedWires.Contains(pt.wireLineObject))
+                {
+                    UpdateLineVisualWorld(pt.wireLineObject.transform as RectTransform, pt.transform.position, pt.connectedTo.transform.position);
+                    updatedWires.Add(pt.wireLineObject);
+                }
+            }
+        }
     }
 
     private IEnumerator InitializeSystem()
     {
-        yield return null; // Tunggu 1 frame agar UI layout siap
+        yield return new WaitForEndOfFrame();
+        Canvas.ForceUpdateCanvases();
 
         // 1. Setup Switches
         foreach (var sw in switches)
@@ -96,16 +128,12 @@ public class PLCController : MonoBehaviour
             }
         }
 
-        // 2. Setup Slots (PERBAIKAN VISUAL)
+        // 2. Setup Slots
         foreach (var slot in slots)
         {
             if (slot.slotHandlerUI != null)
             {
-                // Kita tempel Outline pada Background Slot (Objek Handler)
-                // Pastikan Slot Handler memiliki komponen IMAGE agar Outline terlihat!
                 GameObject targetObj = slot.slotHandlerUI.gameObject;
-
-                // Cek apakah ada image, jika tidak cari di child
                 if (targetObj.GetComponent<Graphic>() == null)
                 {
                     var gfx = targetObj.GetComponentInChildren<Graphic>();
@@ -113,7 +141,6 @@ public class PLCController : MonoBehaviour
                 }
 
                 slot.feedback = GetOrAddFeedback(targetObj);
-
                 slot.slotHandlerUI.slotIndex = slots.IndexOf(slot);
                 slot.slotHandlerUI.controller = this;
             }
@@ -131,14 +158,52 @@ public class PLCController : MonoBehaviour
             if (point != null) point.Setup(this);
         }
 
+        // 5. Setup Initial Wires (Auto Connect)
+        foreach (var rule in wireRules)
+        {
+            if (rule.startConnected && rule.pointA != null && rule.pointB != null)
+            {
+                if (rule.pointA.connectedTo == null && rule.pointB.connectedTo == null)
+                {
+                    GameObject selectedPrefab = null;
+                    if (wirePrefabs.Count > 0)
+                    {
+                        int idx = (rule.wireColorIndex >= 0 && rule.wireColorIndex < wirePrefabs.Count) ? rule.wireColorIndex : 0;
+                        selectedPrefab = wirePrefabs[idx];
+                    }
+
+                    if (selectedPrefab != null)
+                    {
+                        if (wireCanvasParent == null) wireCanvasParent = transform;
+
+                        GameObject newWire = Instantiate(selectedPrefab, wireCanvasParent);
+
+                        RectTransform rt = newWire.GetComponent<RectTransform>();
+                        if (rt != null)
+                        {
+                            rt.pivot = new Vector2(0, 0.5f);
+                            rt.localScale = Vector3.one;
+                            // rt.anchoredPosition3D = Vector3.zero; // DELETE THIS: Jangan reset ke 0,0
+
+                            // Pastikan Z lokal 0
+                            Vector3 localPos = rt.localPosition;
+                            localPos.z = 0;
+                            rt.localPosition = localPos;
+                        }
+
+                        if (newWire.GetComponent<Image>()) newWire.GetComponent<Image>().raycastTarget = false;
+
+                        ConnectWire(rule.pointA, rule.pointB, newWire);
+                    }
+                }
+            }
+        }
+
         RefreshSlotUI();
         isSystemReady = true;
-
-        // Paksa cek logika awal agar yang salah langsung merah
         CheckLogic();
     }
 
-    // Helper untuk memasang feedback script dengan aman
     private AutoErrorFeedback GetOrAddFeedback(GameObject obj)
     {
         var fb = obj.GetComponent<AutoErrorFeedback>();
@@ -151,7 +216,6 @@ public class PLCController : MonoBehaviour
     {
         if (slotIndex < 0 || slotIndex >= slots.Count) return false;
         PLCSlot slot = slots[slotIndex];
-
         if (slot.currentItem != null) return false;
 
         slot.currentItem = droppedItem;
@@ -239,15 +303,47 @@ public class PLCController : MonoBehaviour
             tempWireLine.GetComponent<Image>().raycastTarget = false;
 
         RectTransform rt = tempWireLine.GetComponent<RectTransform>();
-        if (rt != null) rt.pivot = new Vector2(0, 0.5f);
+        if (rt != null)
+        {
+            rt.pivot = new Vector2(0, 0.5f);
+            rt.localScale = Vector3.one;
+
+            // FIX: Jangan reset anchoredPosition3D ke Zero, karena itu memindahkannya ke tengah canvas
+            // Cukup pastikan Z lokal = 0 agar nempel di canvas
+            Vector3 localPos = rt.localPosition;
+            localPos.z = 0;
+            rt.localPosition = localPos;
+        }
     }
 
-    public void OnWireDrag(Vector2 mousePos)
+    // FIX UTAMA: Gunakan ScreenPointToWorldPointInRectangle
+    // Ini menjamin posisi mouse diproyeksikan ke Plane Canvas yang benar, anti "Menembus Langit"
+    public void OnWireDrag(Vector2 screenMousePos)
     {
-        if (tempWireLine != null && currentDraggingPoint != null)
+        if (tempWireLine != null && currentDraggingPoint != null && wireCanvasParent != null)
         {
-            UpdateLineVisual(tempWireLine.transform as RectTransform, currentDraggingPoint.transform.position, mousePos);
+            RectTransform parentRect = wireCanvasParent as RectTransform;
+            Vector3 worldMousePos;
+
+            // Proyeksikan Mouse (2D) ke World Position (3D) tepat di atas rect
+            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(
+                parentRect,
+                screenMousePos,
+                GetCanvasCamera(),
+                out worldMousePos))
+            {
+                // Update visual menggunakan World Position yang sudah valid
+                UpdateLineVisualWorld(tempWireLine.transform as RectTransform, currentDraggingPoint.transform.position, worldMousePos);
+            }
         }
+    }
+
+    private Camera GetCanvasCamera()
+    {
+        if (rootCanvas == null) rootCanvas = GetComponentInParent<Canvas>();
+        if (rootCanvas == null) return null;
+        if (rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay) return null;
+        return rootCanvas.worldCamera != null ? rootCanvas.worldCamera : Camera.main;
     }
 
     public void OnWireDragEnd(UnityEngine.EventSystems.PointerEventData eventData)
@@ -282,7 +378,7 @@ public class PLCController : MonoBehaviour
         a.wireLineObject = lineObj;
         b.wireLineObject = lineObj;
 
-        UpdateLineVisual(lineObj.transform as RectTransform, a.transform.position, b.transform.position);
+        UpdateLineVisualWorld(lineObj.transform as RectTransform, a.transform.position, b.transform.position);
     }
 
     public void DisconnectWire(PLCWirePoint a, PLCWirePoint b)
@@ -299,15 +395,27 @@ public class PLCController : MonoBehaviour
         CheckLogic();
     }
 
-    private void UpdateLineVisual(RectTransform lineRect, Vector3 startWorld, Vector3 endWorld)
+    // Fungsi Update Visual via World Position (Paling Stabil)
+    private void UpdateLineVisualWorld(RectTransform lineRect, Vector3 startWorld, Vector3 endWorld)
     {
         if (lineRect == null) return;
         Transform parent = lineRect.parent;
         if (parent == null) return;
 
+        // Konversi ke Lokal Parent
         Vector3 localStart = parent.InverseTransformPoint(startWorld);
         Vector3 localEnd = parent.InverseTransformPoint(endWorld);
 
+        // Flatten Z (Anti-Langit)
+        localStart.z = 0;
+        localEnd.z = 0;
+
+        UpdateLineVisualLocal(lineRect, localStart, localEnd);
+    }
+
+    // Logika Murni Lokal
+    private void UpdateLineVisualLocal(RectTransform lineRect, Vector3 localStart, Vector3 localEnd)
+    {
         Vector3 dir = localEnd - localStart;
         float dist = dir.magnitude;
         float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
@@ -365,20 +473,14 @@ public class PLCController : MonoBehaviour
 
         // --- 1. UPDATE VISUAL FEEDBACK ---
 
-        // A. Slots (Cek Item)
+        // A. Slots
         foreach (var slot in slots)
         {
             bool slotOk = !slot.isBroken;
-
             if (slot.requiredItem != null)
             {
-                // Slot harus terisi DAN isinya benar
-                if (slot.currentItem == null || slot.currentItem != slot.requiredItem)
-                {
-                    slotOk = false;
-                }
+                if (slot.currentItem == null || slot.currentItem != slot.requiredItem) slotOk = false;
             }
-
             if (slot.feedback != null) slot.feedback.SetError(!slotOk);
             if (!slotOk) allCorrect = false;
         }
@@ -398,10 +500,7 @@ public class PLCController : MonoBehaviour
             {
                 float diff = Mathf.Abs(rule.tankScript.currentLevel - rule.targetLevel);
                 bool tankOk = diff <= rule.tolerance;
-
-                // Panggil SetErrorState untuk menyalakan/mematikan outline merah di tangki
                 rule.tankScript.SetErrorState(!tankOk);
-
                 if (!tankOk)
                 {
                     allCorrect = false;
@@ -410,28 +509,51 @@ public class PLCController : MonoBehaviour
             }
         }
 
-        // D. Wiring
-        foreach (var pt in allWirePoints) if (pt != null) pt.SetErrorState(true);
+        // D. Wiring (UPDATED LOGIC)
+        foreach (var pt in allWirePoints) if (pt != null) pt.SetErrorState(false);
 
         foreach (var rule in wireRules)
         {
             if (rule.pointA != null && rule.pointB != null)
             {
-                bool connected = (rule.pointA.connectedTo == rule.pointB);
-                if (connected)
+                bool currentlyConnected = (rule.pointA.connectedTo == rule.pointB);
+                bool conditionMet = (currentlyConnected == rule.shouldBeConnected);
+
+                if (!conditionMet)
                 {
-                    rule.pointA.SetErrorState(false);
-                    rule.pointB.SetErrorState(false);
+                    rule.pointA.SetErrorState(true);
+                    rule.pointB.SetErrorState(true);
+                    allCorrect = false;
                 }
-                else allCorrect = false;
             }
         }
 
-        int totalConnections = 0;
-        foreach (var pt in allWirePoints) { if (pt != null && pt.connectedTo != null) totalConnections++; }
-        totalConnections /= 2;
+        // D.3. Strict Mode
+        foreach (var pt in allWirePoints)
+        {
+            if (pt != null && pt.connectedTo != null)
+            {
+                bool isLegalConnection = false;
+                foreach (var rule in wireRules)
+                {
+                    bool matchRule = (rule.pointA == pt && rule.pointB == pt.connectedTo) ||
+                                     (rule.pointB == pt && rule.pointA == pt.connectedTo);
 
-        if (totalConnections > wireRules.Count) allCorrect = false;
+                    if (matchRule && rule.shouldBeConnected)
+                    {
+                        isLegalConnection = true;
+                        break;
+                    }
+                }
+
+                if (!isLegalConnection)
+                {
+                    pt.SetErrorState(true);
+                    if (pt.connectedTo) pt.connectedTo.SetErrorState(true);
+                    allCorrect = false;
+                }
+            }
+        }
 
 
         // --- 2. CEK BAHAYA & LOGGING REALTIME ---
@@ -439,7 +561,6 @@ public class PLCController : MonoBehaviour
 
         if (mainPowerOn)
         {
-            // Cek Explosive Item
             if (explosiveItem != null && slots.Count > explosiveSlotIndex && explosiveSlotIndex >= 0)
             {
                 if (slots[explosiveSlotIndex].currentItem == explosiveItem)
@@ -453,7 +574,6 @@ public class PLCController : MonoBehaviour
                 }
             }
 
-            // Cek Liquid Error jika Power On
             if (dangerDetected)
             {
                 if (Time.time > lastExplosionTime + 2.0f)
