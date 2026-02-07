@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 30d281912aa22fb45969a7fb8980ac6c
+guid: 7e651456c8419a642830703fb3105b4d
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -43,17 +43,17 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
-  alignment: 9
-  spritePivot: {x: 0.45799842, y: 0.6141838}
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
   spritePixelsToUnits: 100
-  spriteBorder: {x: 1012, y: 1291, z: 1221, w: 721}
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
   alphaIsTransparency: 1
-  spriteTessellationDetail: 0
+  spriteTessellationDetail: -1
   textureType: 8
   textureShape: 1
   singleChannelComponent: 0
@@ -147,51 +147,18 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites:
-    - serializedVersion: 2
-      name: guy_0
-      rect:
-        serializedVersion: 2
-        x: 1224
-        y: 727
-        width: 283
-        height: 492
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: dd74ec119f56b5d468b3beb078d4d513
-      internalID: -558329207
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    outline:
-    - - {x: -14.765625, y: 394.98047}
-      - {x: -17.226562, y: 392.51953}
-      - {x: 38.14453, y: 474.96094}
-      - {x: 38.14453, y: 535.2539}
-      - {x: -248.55469, y: 535.2539}
-      - {x: -248.55469, y: 63.984375}
-      - {x: -204.25781, y: 39.375}
-      - {x: -14.765625, y: 39.375}
-      - {x: 38.14453, y: 70.13672}
-      - {x: 38.14453, y: 397.4414}
-      - {x: 22.148438, y: 397.4414}
+    sprites: []
+    outline: []
     physicsShape: []
     bones: []
     spriteID: 5e97eb03825dee720800000000000000
-    internalID: 1537655665
+    internalID: 0
     vertices: []
     indices: 
     edges: []
     weights: []
     secondaryTextures: []
-    nameFileIdTable:
-      guy_0: -558329207
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
