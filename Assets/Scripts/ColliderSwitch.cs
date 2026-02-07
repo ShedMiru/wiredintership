@@ -10,6 +10,7 @@ public class ColliderSwitch : MonoBehaviour
     public GameObject plcC;
     public GameObject plcD;
     public GameObject desk;
+    public GameObject character;
 
     void OnEnable()
     {
@@ -32,6 +33,13 @@ public class ColliderSwitch : MonoBehaviour
         Toggle(plcC, state);
         Toggle(plcD, state);
         Toggle(desk, state);
+
+        if (character == null) return;
+
+        CircleCollider2D circCol = character.GetComponent<CircleCollider2D>();
+
+        if (circCol != null)
+            circCol.enabled = state;
     }
 
     private void Toggle(GameObject obj, bool state)
