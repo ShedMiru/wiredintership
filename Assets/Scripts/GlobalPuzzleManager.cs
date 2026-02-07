@@ -8,7 +8,6 @@ public class GlobalPuzzleManager : MonoBehaviour
     public static GlobalPuzzleManager Instance;
 
     [Header("Status Listrik Distrik")]
-    // Sekarang bisa di-edit di Inspector saat Play Mode dan akan berefek langsung
     public bool districtA_Active;
     public bool districtB_Active;
     public bool districtC_Active;
@@ -23,7 +22,7 @@ public class GlobalPuzzleManager : MonoBehaviour
     [Header("Pengaturan Visual")]
     [SerializeField] private Color powerOnColor = Color.green;
     [SerializeField] private Color powerOffColor = Color.red;
-    [SerializeField] private float blinkSpeed = 4.0f; // Diubah ke 4.0f agar sama persis dengan speed Outline di PLC
+    [SerializeField] private float blinkSpeed = 4.0f;
     [Range(0f, 1f)]
     [SerializeField] private float minBrightness = 0.3f;
 
@@ -55,7 +54,9 @@ public class GlobalPuzzleManager : MonoBehaviour
 
     private void Update()
     {
-        // Deteksi perubahan manual di Inspector
+        // Safety Check: Jika indikator sudah hancur (misal pindah scene), stop logic update UI
+        if (indicatorA == null || indicatorB == null || indicatorC == null || indicatorD == null) return;
+
         if (districtA_Active != lastA || districtB_Active != lastB ||
             districtC_Active != lastC || districtD_Active != lastD)
         {
@@ -99,25 +100,32 @@ public class GlobalPuzzleManager : MonoBehaviour
 
     private IEnumerator AnimateBlinking(Image img, Color targetBaseColor)
     {
-        // 1. Fase Transisi Cepat (Agar warna berubah smooth dulu ke target)
+        // Safety check awal
+        if (img == null) yield break;
+
         float t = 0f;
         Color startColor = img.color;
 
+        // 1. Fase Transisi
         while (t < 1f)
         {
+            // CRITICAL FIX: Cek apakah gambar masih ada di setiap frame
+            // Jika pindah scene, img akan menjadi null (destroyed object)
+            if (img == null) yield break;
+
             t += Time.deltaTime * 4f;
             img.color = Color.Lerp(startColor, targetBaseColor, t);
             yield return null;
         }
 
-        // 2. Fase Looping (Kedip-kedip SEIRAMA dengan Outline)
+        // 2. Fase Looping
         while (true)
         {
-            // PERBAIKAN: Menggunakan PingPong (Segitiga) alih-alih Sin (Gelombang)
-            // Ini menyamakan ritme dengan skrip AutoErrorFeedback di PLC Controller.
+            // CRITICAL FIX: Cek null di dalam infinite loop
+            if (img == null) yield break;
+
             float pulse = Mathf.PingPong(Time.time * blinkSpeed, 1f);
 
-            // Hitung warna redup
             Color dimmedColor = new Color(
                 targetBaseColor.r * minBrightness,
                 targetBaseColor.g * minBrightness,
@@ -125,7 +133,6 @@ public class GlobalPuzzleManager : MonoBehaviour
                 targetBaseColor.a
             );
 
-            // Interpolasi warna
             img.color = Color.Lerp(dimmedColor, targetBaseColor, pulse);
 
             yield return null;
@@ -134,8 +141,6 @@ public class GlobalPuzzleManager : MonoBehaviour
 
     public void TriggerExplosion(string plcName)
     {
-        // PERBAIKAN: Menggunakan LogWarning agar tidak dianggap Fatal Error oleh Unity Editor
-        // Ini mencegah game terasa 'Crash' atau 'Pause' saat spamming terjadi.
         Debug.LogWarning($"[SYSTEM ALERT] PLC {plcName} mengalami kegagalan kritis/ledakan!");
     }
 }
