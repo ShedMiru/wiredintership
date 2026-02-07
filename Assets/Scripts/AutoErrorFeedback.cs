@@ -17,7 +17,7 @@ public class AutoErrorFeedback : MonoBehaviour
             outline = GetComponent<Outline>();
             if (outline == null) outline = gameObject.AddComponent<Outline>();
 
-            outline.effectDistance = new Vector2(4, -4); // Ketebalan outline
+            outline.effectDistance = new Vector2(5, -5); // Ketebalan outline
             outline.effectColor = Color.red;
         }
 
