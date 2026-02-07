@@ -64,7 +64,6 @@ public class GameCycleManager : MonoBehaviour
         if (warningAlertUI) warningAlertUI.SetActive(false);
         if (fadeOutPanel)
         {
-            fadeOutPanel.gameObject.SetActive(true);
             fadeOutPanel.canvasRenderer.SetAlpha(0f);
         }
     }
@@ -280,6 +279,7 @@ public class GameCycleManager : MonoBehaviour
 
         while (t < 1f)
         {
+            fadeOutPanel.gameObject.SetActive(true);
             t += Time.deltaTime / fadeDuration;
             if (fadeOutPanel) fadeOutPanel.canvasRenderer.SetAlpha(t);
             yield return null;
@@ -294,6 +294,7 @@ public class GameCycleManager : MonoBehaviour
 
     private IEnumerator GameOverSequence()
     {
+        fadeOutPanel.gameObject.SetActive(true);
         isGameEnded = true;
         Debug.Log("GAME OVER");
 

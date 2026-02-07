@@ -49,7 +49,7 @@ public class PLCLiquidTank : MonoBehaviour
     {
         if (currentLevel < 1.0f)
         {
-            currentLevel += 0.1f;
+            currentLevel += 0.2f;
             currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
             UpdateVisual();
 
@@ -62,7 +62,7 @@ public class PLCLiquidTank : MonoBehaviour
     {
         if (currentLevel > 0.0f)
         {
-            currentLevel -= 0.1f;
+            currentLevel -= 0.2f;
             currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
             UpdateVisual();
 
