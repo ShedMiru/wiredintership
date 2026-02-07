@@ -25,20 +25,11 @@ public class PLCLiquidTank : MonoBehaviour
         btnPlus.onClick.AddListener(OnPlusClicked);
         btnMinus.onClick.AddListener(OnMinusClicked);
 
-        // PERBAIKAN: Target outline diutamakan ke tankBackgroundImage (Wadah)
-        // Jika kosong, fallback ke fillImage, lalu ke gameObject sendiri
+        // Target outline diutamakan ke tankBackgroundImage
         GameObject targetObj = gameObject;
+        if (tankBackgroundImage != null) targetObj = tankBackgroundImage.gameObject;
+        else if (fillImage != null) targetObj = fillImage.gameObject;
 
-        if (tankBackgroundImage != null)
-        {
-            targetObj = tankBackgroundImage.gameObject;
-        }
-        else if (fillImage != null)
-        {
-            targetObj = fillImage.gameObject;
-        }
-
-        // Pastikan tidak dobel komponen feedback
         feedback = targetObj.GetComponent<AutoErrorFeedback>();
         if (feedback == null) feedback = targetObj.AddComponent<AutoErrorFeedback>();
 
@@ -47,33 +38,48 @@ public class PLCLiquidTank : MonoBehaviour
 
     private void OnPlusClicked()
     {
-        if (currentLevel < 1.0f)
+        // Cek apakah belum penuh (pakai toleransi kecil agar 0.99 dianggap belum penuh)
+        if (currentLevel < 1.0f - 0.01f)
         {
-            currentLevel += 0.1f;
-            currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
-            UpdateVisual();
+            currentLevel += 0.2f; // Naik 20%
 
-            // Panggil cek logika segera agar realtime
+            // 1. Rounding agar rapi (hilangkan koma panjang)
+            currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
+
+            // 2. CRITICAL FIX: Kunci (Clamp) agar tidak pernah tembus di atas 1.0
+            // Contoh: Jika 0.9 + 0.2 = 1.1, fungsi ini memaksanya jadi 1.0
+            currentLevel = Mathf.Clamp(currentLevel, 0f, 1.0f);
+
+            UpdateVisual();
             if (masterController != null) masterController.CheckLogic();
         }
     }
 
     private void OnMinusClicked()
     {
-        if (currentLevel > 0.0f)
+        // Cek apakah masih ada isinya
+        if (currentLevel > 0.0f + 0.01f)
         {
-            currentLevel -= 0.1f;
-            currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
-            UpdateVisual();
+            currentLevel -= 0.2f; // Turun 20%
 
+            // 1. Rounding
+            currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
+
+            // 2. CRITICAL FIX: Kunci (Clamp) agar tidak pernah minus
+            // Contoh: Jika 0.1 - 0.2 = -0.1, fungsi ini memaksanya jadi 0.0
+            currentLevel = Mathf.Clamp(currentLevel, 0f, 1.0f);
+
+            UpdateVisual();
             if (masterController != null) masterController.CheckLogic();
         }
     }
 
     public void ScrambleLevel()
     {
-        int rnd = Random.Range(0, 11);
-        currentLevel = rnd * 0.1f;
+        // Acak kelipatan 0.2 (0, 0.2, 0.4, 0.6, 0.8, 1.0)
+        int rnd = Random.Range(0, 6);
+        currentLevel = rnd * 0.2f;
+        currentLevel = Mathf.Round(currentLevel * 10f) / 10f;
         UpdateVisual();
     }
 
@@ -82,7 +88,6 @@ public class PLCLiquidTank : MonoBehaviour
         if (fillImage != null) fillImage.fillAmount = currentLevel;
     }
 
-    // Fungsi ini dipanggil terus menerus oleh PLC Controller
     public void SetErrorState(bool isError)
     {
         if (feedback != null) feedback.SetError(isError);
