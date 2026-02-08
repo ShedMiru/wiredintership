@@ -27,24 +27,38 @@ public class GlobalPuzzleManager : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float minBrightness = 0.3f;
 
-    [Header("Pengaturan Visual")]
+    [Header("Event Panel")]
     public UnityEvent panelEnabler;
     private bool panelEnabled = false;
-
 
     private bool lastA, lastB, lastC, lastD;
     private Coroutine routineA, routineB, routineC, routineD;
 
     private void Awake()
     {
-        if (Instance == null)
+        // PERBAIKAN KRITIS: Scene-Specific Singleton
+        // Jika ada instance lain (sisa error), hancurkan diri sendiri.
+        // Jika tidak, jadikan diri sendiri Instance.
+        // KITA MENGHAPUS DontDestroyOnLoad AGAR MANAGER INI MATI SAAT PINDAH SCENE.
+
+        if (Instance != null && Instance != this)
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
+            Destroy(this.gameObject);
         }
         else
         {
-            Destroy(gameObject);
+            Instance = this;
+            // DontDestroyOnLoad(gameObject); <--- DIHAPUS
+        }
+    }
+
+    // PERBAIKAN KRITIS: Membersihkan data static saat scene dihancurkan
+    private void OnDestroy()
+    {
+        // Jika Instance adalah saya, kosongkan slotnya agar Manager di scene berikutnya bisa masuk.
+        if (Instance == this)
+        {
+            Instance = null;
         }
     }
 
@@ -60,7 +74,7 @@ public class GlobalPuzzleManager : MonoBehaviour
 
     private void Update()
     {
-        // Safety Check: Jika indikator sudah hancur (misal pindah scene), stop logic update UI
+        // Safety Check: Jika indikator sudah hancur (misal saat proses pindah scene), stop logic update UI
         if (indicatorA == null || indicatorB == null || indicatorC == null || indicatorD == null) return;
 
         if (districtA_Active != lastA || districtB_Active != lastB ||
@@ -74,9 +88,10 @@ public class GlobalPuzzleManager : MonoBehaviour
             UpdateMapVisuals();
         }
 
+        // Logic Panel Enabler (Trigger sekali saat A aktif)
         if (districtA_Active && !panelEnabled)
         {
-            panelEnabler.Invoke();
+            if (panelEnabler != null) panelEnabler.Invoke();
             panelEnabled = true;
         }
     }
@@ -122,7 +137,6 @@ public class GlobalPuzzleManager : MonoBehaviour
         while (t < 1f)
         {
             // CRITICAL FIX: Cek apakah gambar masih ada di setiap frame
-            // Jika pindah scene, img akan menjadi null (destroyed object)
             if (img == null) yield break;
 
             t += Time.deltaTime * 4f;
@@ -133,7 +147,6 @@ public class GlobalPuzzleManager : MonoBehaviour
         // 2. Fase Looping
         while (true)
         {
-            // CRITICAL FIX: Cek null di dalam infinite loop
             if (img == null) yield break;
 
             float pulse = Mathf.PingPong(Time.time * blinkSpeed, 1f);
