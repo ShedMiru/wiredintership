@@ -48,6 +48,7 @@ public class GameCycleManager : MonoBehaviour
 
 
     private int lastGreenCount = 0;
+    private int mistakecounter = 0;
 
     private void Awake()
     {
@@ -155,7 +156,11 @@ public class GameCycleManager : MonoBehaviour
             if (!isGameEnded)
             {
                 Debug.Log("Mistake: Menyalakan distrik di fase akhir.");
-                onMistakeMade.Invoke();
+                mistakecounter++;
+                if (mistakecounter > 0)
+                {
+                    onMistakeMade.Invoke();
+                }
             }
         }
 
