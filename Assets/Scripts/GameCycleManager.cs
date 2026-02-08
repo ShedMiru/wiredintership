@@ -202,7 +202,7 @@ public class GameCycleManager : MonoBehaviour
 
         if (sfxSource != null && warningAlarmSFX != null && powerOutageSFX != null)
         {
-            sfxSource.PlayOneShot(powerOutageSFX);
+            bgmSource.PlayOneShot(powerOutageSFX);
             StartCoroutine(WarningAlarmDelay(8f));
         }
 

@@ -29,7 +29,9 @@ public class GlobalPuzzleManager : MonoBehaviour
 
     [Header("Event Panel")]
     public UnityEvent panelEnabler;
+    public UnityEvent pcDialogueStarter;
     private bool panelEnabled = false;
+    private bool firstCheck = false;
 
     private bool lastA, lastB, lastC, lastD;
     private Coroutine routineA, routineB, routineC, routineD;
@@ -93,6 +95,16 @@ public class GlobalPuzzleManager : MonoBehaviour
         {
             if (panelEnabler != null) panelEnabler.Invoke();
             panelEnabled = true;
+            firstCheck = true;
+        }
+    }
+
+    public void PCCheckDialogue()
+    {
+        if (firstCheck)
+        {
+            firstCheck = false;
+            pcDialogueStarter?.Invoke();
         }
     }
 
