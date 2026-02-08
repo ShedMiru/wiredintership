@@ -6,39 +6,86 @@ public class PlayerInventory : MonoBehaviour
 {
     public static PlayerInventory Instance;
 
-    [Header("Inventory Settings")]
-    public int maxSlots = 2;
+    [Header("Konfigurasi Tas")]
+    public int maxSlots = 2; // Maksimal bawa 2 barang
+
+    // List untuk menyimpan barang yang sedang dibawa
     public List<ItemData> carriedItems = new List<ItemData>();
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
+        // PERBAIKAN: Gunakan Scene-Specific Singleton.
+        // Hapus DontDestroyOnLoad agar inventory ter-reset saat restart level/pindah scene.
+
+        if (Instance != null && Instance != this)
+        {
+            Destroy(this.gameObject);
+        }
+        else
+        {
+            Instance = this;
+            // DontDestroyOnLoad(gameObject); <--- HAPUS ATAU KOMENTARI INI
+        }
     }
 
-    // Mengambil barang dari meja
+    // PENTING: Bersihkan static instance saat object hancur (pindah scene)
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
+
+    /// <summary>
+    /// Mencoba memasukkan barang ke tas.
+    /// Return TRUE jika berhasil, FALSE jika tas penuh.
+    /// </summary>
     public bool AddItem(ItemData item)
     {
+        // Cek apakah tas penuh
         if (carriedItems.Count >= maxSlots)
         {
-            Debug.Log("Inventory Penuh! Hanya bisa bawa 2 barang.");
+            Debug.LogWarning("Tas Penuh! Tidak bisa mengambil barang lagi.");
+            return false;
+        }
+
+        // Cek apakah barang sudah ada
+        if (carriedItems.Contains(item))
+        {
+            Debug.Log("Kamu sudah punya barang ini.");
             return false;
         }
 
         carriedItems.Add(item);
-        Debug.Log($"Mengambil: {item.itemName}");
+        Debug.Log($"BERHASIL MENYIMPAN: {item.itemName} | Total Isi: {carriedItems.Count}/{maxSlots}");
+
+        // Refresh UI jika ada displayer aktif
+        if (PLCInventoryDisplay.Instance != null)
+            PLCInventoryDisplay.Instance.RefreshInventoryUI();
+
         return true;
     }
 
-    // Memasang barang ke PLC (Barang hilang dari tas)
+    /// <summary>
+    /// Menghapus barang dari tas (dipakai nanti saat dipasang ke PLC)
+    /// </summary>
     public void RemoveItem(ItemData item)
     {
         if (carriedItems.Contains(item))
         {
             carriedItems.Remove(item);
+            Debug.Log($"Barang {item.itemName} digunakan/dihapus.");
+
+            // Refresh UI jika ada displayer aktif
+            if (PLCInventoryDisplay.Instance != null)
+                PLCInventoryDisplay.Instance.RefreshInventoryUI();
         }
     }
 
-    // Cek apakah punya barang tertentu (untuk validasi drag)
+    /// <summary>
+    /// Helper untuk cek apakah kita punya barang tertentu
+    /// </summary>
     public bool HasItem(ItemData item)
     {
         return carriedItems.Contains(item);
